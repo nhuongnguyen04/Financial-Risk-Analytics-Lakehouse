@@ -1,0 +1,8 @@
+pyarrow==16.1.0
+pyspark==3.5.1
+delta-spark==3.2.0
+kafka-python==2.0.2 
+psycopg2-binary==2.9.6 
+python-snappy==0.7.3 
+pytest==7.4.0
+numpy==1.26.4

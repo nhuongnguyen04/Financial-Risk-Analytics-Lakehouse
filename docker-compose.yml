@@ -1,0 +1,115 @@
+version: '3.9'
+services:
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.6.0
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
+    networks:
+      - app-net
+
+  kafka:
+    image: confluentinc/cp-kafka:7.6.0
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+      - "9093:9093"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
+      KAFKA_CONFLUENT_SUPPORT_METRICS_ENABLE: 'false'
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,PLAINTEXT_HOST://0.0.0.0:9093
+    networks:
+      - app-net
+  
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    ports:
+      - "8083:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+      KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
+    depends_on:
+      - kafka
+      - zookeeper
+    networks:
+      - app-net
+
+  postgres:
+    image: postgres:16.3
+    restart: always
+    environment:
+      POSTGRES_USER: pguser
+      POSTGRES_PASSWORD: pgpass
+      POSTGRES_DB: finance
+    ports:
+      - "5432:5432"
+    volumes:
+     - ./data/postgres:/var/lib/postgresql/data
+    networks:
+      - app-net
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: 12345678
+    ports:
+      - "9000:9000" 
+      - "9001:9001"
+    volumes:
+      - ./data/minio:/data
+    networks:
+      - app-net
+  
+  spark:
+    build:
+      context: ./spark
+      dockerfile: Dockerfile
+    environment:
+      - SPARK_MODE=master
+      - SPARK_MASTER_HOST=spark
+      - SPARK_MASTER_PORT=7077
+      - SPARK_UI_PORT=8080
+      - PYSPARK_PYTHON=python3
+    ports:
+      - "8080:8080"
+      - "7077:7077"
+    volumes:  
+      - ./spark/logs:/opt/spark/logs
+      - ./spark/scripts:/opt/spark/scripts
+    networks:
+      - app-net
+  
+  spark-worker:
+    build:
+      context: ./spark
+      dockerfile: Dockerfile
+    environment:
+      - SPARK_MODE=worker
+      - SPARK_MASTER_URL=spark://spark:7077
+      - SPARK_WORKER_PORT=7078
+      - SPARK_WORKER_WEBUI_PORT=8082
+    depends_on:
+      - spark
+    ports:
+      - "8082:8082"
+    volumes:
+      - ./spark/logs:/opt/spark/logs
+      - ./spark/scripts:/opt/spark/scripts
+    networks:
+      - app-net
+
+networks:
+  app-net:
+    driver: bridge
+  
