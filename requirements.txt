@@ -1,0 +1,15 @@
+pyarrow==16.1.0
+pyspark==3.5.1
+pyiceberg==0.6.1
+confluent-kafka==2.3.0
+kafka-python==2.0.2 
+psycopg2-binary==2.9.6 
+python-snappy==0.7.3 
+pytest==7.4.0
+numpy==1.26.4
+pandas==2.2.2
+python-dotenv==1.0.0
+requests==2.32.3
+alpha_vantage==2.3.1
+yfinance==0.2.40
+kaggle==1.6.12

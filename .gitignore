@@ -101,6 +101,38 @@ node_modules/
 /_temporary/
 ._SUCCESS
 
+# Ignore local configuration files
+config/
+
+# Ignore local environment variables
+.env
+.env.*
+
+# Ignore local database files
+*.db
+*.sqlite3
+*.sqlite
+
+# Ignore IDE/editor specific files
+.vscode/
+.idea/
+
+# Ignore local environment variables
+.env
+.env.*
+
+# Ignore local database files
+*.db
+*.sqlite3
+*.sqlite
+
+# Ignore IDE/editor specific files
+.vscode/
+.idea/
+
+# Ignore lakehouse directory
+lakehouse/
+
 # Ignore local secrets
 secrets/
 credentials.json
