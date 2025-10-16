@@ -18,22 +18,6 @@ spark = SparkSession.builder \
 
 # Tạo namespace nếu chưa tồn tại
 spark.sql("CREATE NAMESPACE IF NOT EXISTS iceberg_catalog.finance")
-
-# Tạo bảng Iceberg nếu chưa tồn tại
-spark.sql("""
-CREATE TABLE IF NOT EXISTS iceberg_catalog.finance.transactions (
-    transaction_id STRING,
-    customer_id INT,
-    amount DOUBLE,
-    merchant STRING,
-    geo STRING,
-    is_fraud INT,
-    event_ts TIMESTAMP,
-    dt DATE
-) 
-USING iceberg 
-PARTITIONED BY (dt)
-OPTIONS ('format-version'='2')
-""")
+spark.sql("CREATE NAMESPACE IF NOT EXISTS iceberg_catalog.system")
 spark.stop()
 print("✅ Iceberg catalog & example table initialized")

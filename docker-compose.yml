@@ -73,6 +73,7 @@ services:
       - SPARK_UI_PORT=8080
       - PYSPARK_PYTHON=python3
       - PYSPARK_DRIVER_PYTHON=python3
+      - KAGGLE_CONFIG_DIR=/tmp/kaggle
     ports:
       - "8080:8080"
       - "7077:7077"
@@ -80,6 +81,7 @@ services:
       - ./data:/opt/spark/data
       - ./lakehouse:/opt/spark/lakehouse
       - ./scripts:/opt/spark/scripts
+      - ./kaggle.json:/tmp/kaggle/kaggle.json:ro
     command: tail -f /dev/null
     networks:
       - app-net
@@ -91,6 +93,7 @@ services:
       - SPARK_MASTER_URL=spark://spark:7077
       - SPARK_WORKER_PORT=7078
       - SPARK_WORKER_WEBUI_PORT=8082
+      - KAGGLE_CONFIG_DIR=/tmp/kaggle
     depends_on:
       - spark
     ports:
@@ -99,6 +102,8 @@ services:
       - ./data:/opt/spark/data
       - ./lakehouse:/opt/spark/lakehouse
       - ./scripts:/opt/spark/scripts
+      - ./kaggle.json:/tmp/kaggle/kaggle.json:ro
+    command: tail -f /dev/null
     networks:
       - app-net
   

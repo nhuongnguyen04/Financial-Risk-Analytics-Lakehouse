@@ -7,7 +7,7 @@ import uuid
 
 # Cấu hình Kafka
 kafka_config = {
-    "bootstrap.servers": "localhost:9093"
+    "bootstrap.servers": "kafka:9092"
 }
 
 # Khởi tạo producer

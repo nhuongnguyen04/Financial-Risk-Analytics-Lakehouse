@@ -117,22 +117,8 @@ flowchart LR
 
 ---
 
-## 5. 🧩 Quy chuẩn đặt tên & quản lý dữ liệu
 
-### 5.1. Naming conventions
-- **Buckets / Paths**: `lake/{layer}/{domain}/{table}/{event_date}`  
-- **Tables**: `{layer}_{domain}_{table}`  
-- **Fields**: lowercase, snake_case.  
-
-### 5.2. Data governance
-- **Schema Registry**: PostgreSQL catalog (Iceberg metadata).  
-- **Versioning**: Iceberg snapshot (time travel).  
-- **Data Quality**: Validate schema & null check ngay tại ingestion (Shift Left).  
-- **PII Handling**: Hashing (SHA256), không lưu plaintext.  
-
----
-
-## 6. 🤖 Machine Learning Workflow
+## 5. 🤖 Machine Learning Workflow
 
 1. **Feature Engineering**: Lấy data từ Silver/Gold Iceberg tables.  
 2. **Model Training**: XGBoost / LightGBM trên Spark hoặc sklearn.  
@@ -142,7 +128,7 @@ flowchart LR
 
 ---
 
-## 7. 🛠 Operational Requirements
+## 6. 🛠 Operational Requirements
 
 - **Orchestration**: Airflow DAG khởi chạy, giám sát và replay streaming jobs.  
 - **Monitoring**:  
@@ -157,7 +143,7 @@ flowchart LR
 
 ---
 
-## 8. 📦 Deliverables
+## 7. 📦 Deliverables
 
 - ✅ Docker Compose environment: Kafka, Spark, PostgreSQL, MinIO, Airflow, MLflow.  
 - ✅ Unified Kappa pipeline: Spark Structured Streaming → Iceberg.  
@@ -172,7 +158,7 @@ flowchart LR
 
 ---
 
-## 9. ✅ Quy tắc kiểm tra & review
+## 8. ✅ Quy tắc kiểm tra & review
 
 - **Code**: Theo PEP8, linting bằng `black`, `flake8`.  
 - **Streaming Jobs**: Test logic với `pytest` và mini Kafka.  
@@ -182,7 +168,7 @@ flowchart LR
 
 ---
 
-## 10. 🌊 Hướng phát triển tiếp theo
+## 9. 🌊 Hướng phát triển tiếp theo
 
 - **Flink Integration**: thử nghiệm Flink Agents (FLIP-531) chạy song song Spark.  
 - **Iceberg SQL Catalog**: mở rộng sang Trino/DuckDB.  
