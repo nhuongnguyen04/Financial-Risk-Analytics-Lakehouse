@@ -19,5 +19,8 @@ spark = SparkSession.builder \
 # Tạo namespace nếu chưa tồn tại
 spark.sql("CREATE NAMESPACE IF NOT EXISTS iceberg_catalog.finance")
 spark.sql("CREATE NAMESPACE IF NOT EXISTS iceberg_catalog.system")
+spark.sql("CREATE NAMESPACE IF NOT EXISTS iceberg_catalog.silver.finance")
+spark.sql("CREATE NAMESPACE IF NOT EXISTS iceberg_catalog.silver.system")
+
 spark.stop()
 print("✅ Iceberg catalog & example table initialized")

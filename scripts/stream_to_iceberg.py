@@ -49,6 +49,8 @@ auth_log_schema = StructType([
     StructField("user_id", IntegerType(), True),
     StructField("timestamp", StringType(), True),
     StructField("action", StringType(), True),
+    StructField("result", StringType(), True),
+    StructField("session_id", StringType(), True),
     StructField("device_id", StringType(), True),
     StructField("ip_address", StringType(), True),
     StructField("geo", StringType(), True)
@@ -58,6 +60,7 @@ system_log_schema = StructType([
     StructField("log_id", StringType(), True),
     StructField("timestamp", StringType(), True),
     StructField("service", StringType(), True),
+    StructField("component", StringType(), True),
     StructField("severity", StringType(), True),
     StructField("message", StringType(), True)
 ])
