@@ -1,0 +1,13 @@
+# Custom Airflow image with providers for Spark, Kafka, Minio (S3), and Iceberg
+FROM apache/airflow:3.1.0
+
+# Install required providers
+# Use --user to install in user space, avoiding permission issues
+RUN pip install --no-cache-dir --user \
+    apache-airflow-providers-apache-spark \
+    apache-airflow-providers-apache-kafka \
+    apache-airflow-providers-amazon \
+    apache-airflow-providers-apache-iceberg
+
+# Set environment variables if needed for Iceberg/Spark
+ENV SPARK_HOME=/opt/spark  

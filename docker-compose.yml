@@ -1,4 +1,41 @@
 version: '3.9'
+
+x-airflow-common:
+  &airflow-common
+  build:
+    context: .
+    dockerfile: Dockerfile.airflow
+  environment:
+    &airflow-common-env
+    AIRFLOW__CORE__EXECUTOR: CeleryExecutor
+    AIRFLOW__CORE__AUTH_MANAGER: airflow.providers.fab.auth_manager.fab_auth_manager.FabAuthManager
+    AIRFLOW__CORE__SQL_ALCHEMY_CONN: postgresql+psycopg2://postgres:postgres@postgres:5432/finance-db
+    AIRFLOW_DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://postgres:postgres@postgres:5432/finance-db
+    AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql://postgres:postgres@postgres:5432/finance-db
+    AIRFLOW__CELERY__BROKER_URL: redis://redis:6379/0
+    AIRFLOW__CORE__FERNET_KEY: ''
+    AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
+    AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+    AIRFLOW__CORE__EXECUTION_API_SERVER_URL: 'http://airflow-apiserver:8080/execution/'
+    AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: 'true'
+  volumes:
+    - ./dags:/opt/airflow/dags
+    - ./logs:/opt/airflow/logs
+    - ./plugins:/opt/airflow/plugins
+    - ./lakehouse:/opt/airflow/lakehouse
+    - ./data:/opt/airflow/data
+    - ./scripts:/opt/airflow/scripts
+  user: "${AIRFLOW_UID:-50000}:0"
+  depends_on:
+    &airflow-common-depends-on
+    redis:
+      condition: service_healthy
+    postgres:
+      condition: service_healthy
+  networks:
+    - app-net
+
+
 services:
   kafka:
     image: apache/kafka:latest
@@ -30,7 +67,6 @@ services:
     environment:
       KAFKA_CLUSTERS_0_NAME: local
       KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
-      KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
     depends_on:
       - kafka
     networks:
@@ -47,10 +83,15 @@ services:
       - "5432:5432"
     volumes:
       - pg_data:/var/lib/postgresql/data
-      - ./init-airflow-db.sql:/docker-entrypoint-initdb.d/init-airflow-db.sql
+      - ./init/init-airflow-db.sql:/docker-entrypoint-initdb.d/init-airflow-db.sql
     networks:
       - app-net
-
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres"]
+      interval: 10s
+      retries: 5
+      start_period: 5s
+  
   minio:
     image: minio/minio:latest
     command: server /data --console-address ":9001"
@@ -66,7 +107,9 @@ services:
       - app-net
   
   spark:
-    build: .
+    build: 
+      context: .
+      dockerfile: Dockerfile.spark
     environment:
       - SPARK_MODE=master
       - SPARK_MASTER_HOST=spark
@@ -90,7 +133,9 @@ services:
       - app-net
   
   spark-worker:
-    build: .
+    build: 
+      context: .
+      dockerfile: Dockerfile.spark
     environment:
       - SPARK_MODE=worker
       - SPARK_MASTER_URL=spark://spark:7077
@@ -115,7 +160,7 @@ services:
   producer:
     build:
       context: .
-      dockerfile: ./scripts/producer.Dockerfile
+      dockerfile: Dockerfile.producer
     depends_on:
       - kafka
     environment:
@@ -124,97 +169,165 @@ services:
     networks:
       - app-net
   
-  airflow-init:
-    image: apache/airflow:2.10.3-python3.12
-    environment:
-      AIRFLOW__CORE__EXECUTOR: LocalExecutor
-      AIRFLOW__CORE__SQL_ALCHEMY_CONN: postgresql+psycopg2://postgres:postgres@postgres:5432/finance-db
-      AIRFLOW__CORE__FERNET_KEY: 'YOUR_FERNET_KEY_HERE'
-      AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
-      AIRFLOW__API__AUTH_BACKENDS: 'airflow.api.auth.backend.basic_auth'
-      AIRFLOW__WEBSERVER__RBAC: 'true'
-      AIRFLOW__WEBSERVER__EXPOSE_CONFIG: 'true'
-      AIRFLOW__LOGGING__LOGGING_LEVEL: 'INFO'
-      _PIP_ADDITIONAL_REQUIREMENTS: 'apache-airflow-providers-apache-spark apache-airflow-providers-postgres apache-airflow-providers-apache-kafka apache-airflow-providers-amazon'
-    volumes:
-      - ./dags:/opt/airflow/dags
-      - ./scripts:/opt/airflow/scripts
-      - ./data:/opt/airflow/data
-      - ./logs:/opt/airflow/logs
-      - ./plugins:/opt/airflow/plugins
-      - airflow_logs:/opt/airflow/logs
-    command: >
-      bash -c "
-      airflow db upgrade &&
-      airflow users create --username admin --firstname Admin --lastname User --role Admin --email admin@example.com --password admin &&
-      airflow dags list
-      "
+  redis:
+    image: redis:7.2-bookworm
+    expose:
+      - 6379
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 30s
+      retries: 50
+      start_period: 30s
+    restart: always
     networks:
       - app-net
-  airflow-webserver:
-    image: apache/airflow:2.10.3-python3.12
-    environment:
-      AIRFLOW__CORE__EXECUTOR: LocalExecutor
-      AIRFLOW__CORE__SQL_ALCHEMY_CONN: postgresql+psycopg2://postgres:postgres@postgres:5432/finance-db
-      AIRFLOW__CORE__FERNET_KEY: 'YOUR_FERNET_KEY_HERE'
-      AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
-      AIRFLOW__API__AUTH_BACKENDS: 'airflow.api.auth.backend.basic_auth'
-      AIRFLOW__WEBSERVER__RBAC: 'true'
-      AIRFLOW__WEBSERVER__EXPOSE_CONFIG: 'true'
-      AIRFLOW__LOGGING__LOGGING_LEVEL: 'INFO'
-      _PIP_ADDITIONAL_REQUIREMENTS: 'apache-airflow-providers-apache-spark apache-airflow-providers-postgres apache-airflow-providers-apache-kafka apache-airflow-providers-amazon'
-    volumes:
-      - ./dags:/opt/airflow/dags
-      - ./scripts:/opt/airflow/scripts
-      - ./data:/opt/airflow/data
-      - ./lakehouse:/opt/airflow/lakehouse
-      - ./logs:/opt/airflow/logs
-      - ./plugins:/opt/airflow/plugins
-      - airflow_logs:/opt/airflow/logs
+  
+  airflow-apiserver:
+    <<: *airflow-common
+    command: api-server
     ports:
       - "8081:8080"
-    command: webserver
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
+      test: ["CMD-SHELL", "curl", "--fail", "http://localhost:8080/api/v2/version || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 5
+      start_period: 30s
+    restart: always
     depends_on:
-      - airflow-init
-      - postgres
+      <<: *airflow-common-depends-on
+      airflow-init:
+        condition: service_completed_successfully
     networks:
       - app-net
-      
   airflow-scheduler:
-    image: apache/airflow:2.10.3-python3.12
-    environment:
-      AIRFLOW__CORE__EXECUTOR: LocalExecutor
-      AIRFLOW__CORE__SQL_ALCHEMY_CONN: postgresql+psycopg2://postgres:postgres@postgres:5432/finance-db
-      AIRFLOW__CORE__FERNET_KEY: 'YOUR_FERNET_KEY_HERE'
-      AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
-      AIRFLOW__API__AUTH_BACKENDS: 'airflow.api.auth.backend.basic_auth'
-      AIRFLOW__WEBSERVER__RBAC: 'true'
-      AIRFLOW__WEBSERVER__EXPOSE_CONFIG: 'true'
-      AIRFLOW__LOGGING__LOGGING_LEVEL: 'INFO'
-      _PIP_ADDITIONAL_REQUIREMENTS: 'apache-airflow-providers-apache-spark apache-airflow-providers-postgres apache-airflow-providers-apache-kafka apache-airflow-providers-amazon'
-    volumes:
-      - ./dags:/opt/airflow/dags
-      - ./scripts:/opt/airflow/scripts
-      - ./data:/opt/airflow/data
-      - ./lakehouse:/opt/airflow/lakehouse
-      - ./logs:/opt/airflow/logs
-      - ./plugins:/opt/airflow/plugins
-      - airflow_logs:/opt/airflow/logs
+    <<: *airflow-common
     command: scheduler
+    restart: always
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8974/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
     depends_on:
-      - airflow-init
-      - postgres
+      <<: *airflow-common-depends-on
+      airflow-init:
+        condition: service_completed_successfully
     networks:
       - app-net
+  airflow-webserver:
+    <<: *airflow-common
+    command: webserver
+    ports:
+      - "8084:8080"
+    restart: always
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8084/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    depends_on:
+      <<: *airflow-common-depends-on
+      airflow-init:
+        condition: service_completed_successfully
+    networks:
+      - app-net
+  airflow-dag-processor:
+    <<: *airflow-common
+    command: dag-processor
+    restart: always
+    healthcheck:
+      test: ["CMD-SHELL", 'airflow jobs check --job-type DagProcessorJob --hostname "$${HOSTNAME}"']
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    depends_on:
+      <<: *airflow-common-depends-on
+      airflow-init:
+        condition: service_completed_successfully
+    networks:
+      - app-net
+  airflow-worker:
+    <<: *airflow-common
+    command: celery worker
+    restart: always
+    healthcheck:
+      test:
+        - "CMD-SHELL"
+        - 'celery --app airflow.providers.celery.executors.celery_executor.app inspect ping -d "celery@$${HOSTNAME}" || celery --app airflow.executors.celery_executor.app inspect ping -d "celery@$${HOSTNAME}"'
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    environment:
+      <<: *airflow-common-env
+      DUMB_INIT_SETSID: "0"
+    depends_on:
+      <<: *airflow-common-depends-on
+      airflow-init:
+        condition: service_completed_successfully
+      airflow-apiserver:
+        condition: service_healthy
+    networks:
+      - app-net
+  airflow-triggerer:
+    <<: *airflow-common
+    command: triggerer
+    restart: always
+    healthcheck:
+      test: ["CMD-SHELL", 'airflow jobs check --job-type TriggererJob --hostname "$${HOSTNAME}"']
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    depends_on:
+      <<: *airflow-common-depends-on
+      airflow-init:
+        condition: service_completed_successfully
+    networks:
+      - app-net
+  airflow-init:
+    <<: *airflow-common
+    entrypoint: /bin/bash 
+    command: -c "/opt/airflow/scripts/init_airflow.sh"
+    volumes:
+      - ./scripts/init_airflow.sh:/opt/airflow/scripts/init_airflow.sh
+    environment:
+      <<: *airflow-common-env
+      _AIRFLOW_DB_MIGRATE: 'true'
+      _AIRFLOW_WWW_USER_CREATE: 'true'
+      _AIRFLOW_WWW_USER_USERNAME: ${_AIRFLOW_WWW_USER_USERNAME:-airflow}
+      _AIRFLOW_WWW_USER_PASSWORD: ${_AIRFLOW_WWW_USER_PASSWORD:-airflow}
+    user: "0:0"
+    networks:
+      - app-net
+  
+  flower:
+    <<: *airflow-common
+    command: celery flower
+    ports:
+      - "5555:5555"
+    restart: always
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:5555/"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    depends_on:
+      <<: *airflow-common-depends-on
+      airflow-init:
+        condition: service_completed_successfully
+    networks:
+      - app-net
+
 volumes:
   pg_data:    
   kafka_data:
-  airflow_logs:
 
 networks:
   app-net:
